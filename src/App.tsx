@@ -11,10 +11,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const API_URL = `https://${projectId}.supabase.co/functions/v1/make-server-a0489752`;
 
-const supabase = createClient(
-  `https://${projectId}.supabase.co`,
-  publicAnonKey
-);
+const supabase = createClient(`https://${projectId}.supabase.co`, publicAnonKey);
 
 export interface Product {
   id: string;
@@ -65,17 +62,17 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
 
-  // Check for existing session
-  useEffect(() => {
-    checkSession();
-  }, []);
+// Check for existing session
+useEffect(() => {
+  checkSession();
+}, []);
 
-  // Initialize and load data
-  useEffect(() => {
-    if (user) {
-      loadData();
-    }
-  }, [user]);
+// Initialize and load data
+useEffect(() => {
+  if (user && accessToken) {
+    loadData();
+  }
+}, [user, accessToken]);
 
   const checkSession = async () => {
     try {
@@ -162,11 +159,15 @@ export default function App() {
       setLoading(true);
       setError(null);
 
+      if (!accessToken) {
+        throw new Error('Session tidak ditemukan. Silakan login ulang.');
+      }
+
       // Initialize products if needed
       await fetch(`${API_URL}/init-products`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         }
       });
@@ -174,7 +175,7 @@ export default function App() {
       // Load products
       const productsRes = await fetch(`${API_URL}/products`, {
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`
+          'Authorization': `Bearer ${accessToken}`
         }
       });
       
@@ -188,7 +189,7 @@ export default function App() {
       // Load sales
       const salesRes = await fetch(`${API_URL}/sales`, {
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`
+          'Authorization': `Bearer ${accessToken}`
         }
       });
       
@@ -203,7 +204,7 @@ export default function App() {
       try {
         const salesmenRes = await fetch(`${API_URL}/salesmen`, {
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`
+            'Authorization': `Bearer ${accessToken}`
           }
         });
         
@@ -229,10 +230,14 @@ export default function App() {
 
   const handleSaleSubmit = async (sale: Sale) => {
     try {
+      if (!accessToken) {
+        throw new Error('Session tidak ditemukan. Silakan login ulang.');
+      }
+
       const response = await fetch(`${API_URL}/sales`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(sale)
@@ -257,6 +262,11 @@ export default function App() {
   // Salesman CRUD handlers
   const handleAddSalesman = async (salesman: Omit<Salesman, 'id'>): Promise<boolean> => {
     try {
+      if (!accessToken) {
+        alert('Session tidak ditemukan. Silakan login ulang.');
+        return false;
+      }
+
       const newSalesman = {
         id: Date.now().toString(),
         ...salesman
@@ -265,7 +275,7 @@ export default function App() {
       const response = await fetch(`${API_URL}/salesmen`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(newSalesman)
@@ -290,10 +300,15 @@ export default function App() {
 
   const handleUpdateSalesman = async (id: string, salesman: Omit<Salesman, 'id'>): Promise<boolean> => {
     try {
+      if (!accessToken) {
+        alert('Session tidak ditemukan. Silakan login ulang.');
+        return false;
+      }
+
       const response = await fetch(`${API_URL}/salesmen/${id}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(salesman)
@@ -318,10 +333,15 @@ export default function App() {
 
   const handleDeleteSalesman = async (id: string): Promise<boolean> => {
     try {
+      if (!accessToken) {
+        alert('Session tidak ditemukan. Silakan login ulang.');
+        return false;
+      }
+
       const response = await fetch(`${API_URL}/salesmen/${id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`
+          'Authorization': `Bearer ${accessToken}`
         }
       });
 
