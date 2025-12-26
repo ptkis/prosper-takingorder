@@ -1,17 +1,22 @@
 import { useState, useEffect } from 'react';
+import { Dashboard } from './components/Dashboard';
 import { ProductList } from './components/ProductList';
-import { SalesEntry } from './components/SalesEntry';
 import { SalesHistory } from './components/SalesHistory';
 import { Login } from './components/Login';
 import { SalesmanList } from './components/SalesmanList';
+import { SalesEntryModal } from './components/SalesEntryModal';
+import { ManageUsers } from './components/ManageUsers';
 import type { Salesman } from './components/SalesmanList';
-import { Package, ShoppingCart, History, Loader2, LogOut, Users } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Loader2, LogOut, Users, Shield } from 'lucide-react';
 import { projectId, publicAnonKey } from './utils/supabase/info';
 import { createClient } from '@supabase/supabase-js';
 
 const API_URL = `https://${projectId}.supabase.co/functions/v1/make-server-a0489752`;
 
-const supabase = createClient(`https://${projectId}.supabase.co`, publicAnonKey);
+const supabase = createClient(
+  `https://${projectId}.supabase.co`,
+  publicAnonKey
+);
 
 export interface Product {
   id: string;
@@ -53,26 +58,28 @@ const initialProducts: Product[] = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'entry' | 'products' | 'history' | 'salesmen'>('entry');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'sales' | 'products' | 'salesmen' | 'users'>('dashboard');
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [sales, setSales] = useState<Sale[]>([]);
   const [salesmen, setSalesmen] = useState<Salesman[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<'admin' | 'user'>('user');
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [showSalesModal, setShowSalesModal] = useState(false);
 
-// Check for existing session
-useEffect(() => {
-  checkSession();
-}, []);
+  // Check for existing session
+  useEffect(() => {
+    checkSession();
+  }, []);
 
-// Initialize and load data
-useEffect(() => {
-  if (user && accessToken) {
-    loadData();
-  }
-}, [user, accessToken]);
+  // Initialize and load data
+  useEffect(() => {
+    if (user) {
+      loadData();
+    }
+  }, [user]);
 
   const checkSession = async () => {
     try {
@@ -80,6 +87,9 @@ useEffect(() => {
       if (session) {
         setUser(session.user);
         setAccessToken(session.access_token);
+        // Get user role from metadata
+        const role = session.user.user_metadata?.role || 'user';
+        setUserRole(role);
       }
     } catch (error) {
       console.error('Error checking session:', error);
@@ -103,6 +113,8 @@ useEffect(() => {
       if (data.session) {
         setUser(data.user);
         setAccessToken(data.session.access_token);
+        const role = data.user.user_metadata?.role || 'user';
+        setUserRole(role);
         return true;
       }
 
@@ -145,6 +157,7 @@ useEffect(() => {
     await supabase.auth.signOut();
     setUser(null);
     setAccessToken(null);
+    setUserRole('user');
     setProducts(initialProducts);
     setSales([]);
   };
@@ -159,15 +172,11 @@ useEffect(() => {
       setLoading(true);
       setError(null);
 
-      if (!accessToken) {
-        throw new Error('Session tidak ditemukan. Silakan login ulang.');
-      }
-
       // Initialize products if needed
       await fetch(`${API_URL}/init-products`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${publicAnonKey}`,
           'Content-Type': 'application/json'
         }
       });
@@ -175,7 +184,7 @@ useEffect(() => {
       // Load products
       const productsRes = await fetch(`${API_URL}/products`, {
         headers: {
-          'Authorization': `Bearer ${accessToken}`
+          'Authorization': `Bearer ${publicAnonKey}`
         }
       });
       
@@ -189,7 +198,7 @@ useEffect(() => {
       // Load sales
       const salesRes = await fetch(`${API_URL}/sales`, {
         headers: {
-          'Authorization': `Bearer ${accessToken}`
+          'Authorization': `Bearer ${publicAnonKey}`
         }
       });
       
@@ -204,7 +213,7 @@ useEffect(() => {
       try {
         const salesmenRes = await fetch(`${API_URL}/salesmen`, {
           headers: {
-            'Authorization': `Bearer ${accessToken}`
+            'Authorization': `Bearer ${publicAnonKey}`
           }
         });
         
@@ -230,14 +239,10 @@ useEffect(() => {
 
   const handleSaleSubmit = async (sale: Sale) => {
     try {
-      if (!accessToken) {
-        throw new Error('Session tidak ditemukan. Silakan login ulang.');
-      }
-
       const response = await fetch(`${API_URL}/sales`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${publicAnonKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(sale)
@@ -262,11 +267,6 @@ useEffect(() => {
   // Salesman CRUD handlers
   const handleAddSalesman = async (salesman: Omit<Salesman, 'id'>): Promise<boolean> => {
     try {
-      if (!accessToken) {
-        alert('Session tidak ditemukan. Silakan login ulang.');
-        return false;
-      }
-
       const newSalesman = {
         id: Date.now().toString(),
         ...salesman
@@ -275,7 +275,7 @@ useEffect(() => {
       const response = await fetch(`${API_URL}/salesmen`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${publicAnonKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(newSalesman)
@@ -300,15 +300,10 @@ useEffect(() => {
 
   const handleUpdateSalesman = async (id: string, salesman: Omit<Salesman, 'id'>): Promise<boolean> => {
     try {
-      if (!accessToken) {
-        alert('Session tidak ditemukan. Silakan login ulang.');
-        return false;
-      }
-
       const response = await fetch(`${API_URL}/salesmen/${id}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${publicAnonKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(salesman)
@@ -333,15 +328,10 @@ useEffect(() => {
 
   const handleDeleteSalesman = async (id: string): Promise<boolean> => {
     try {
-      if (!accessToken) {
-        alert('Session tidak ditemukan. Silakan login ulang.');
-        return false;
-      }
-
       const response = await fetch(`${API_URL}/salesmen/${id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${accessToken}`
+          'Authorization': `Bearer ${publicAnonKey}`
         }
       });
 
@@ -389,34 +379,64 @@ useEffect(() => {
     );
   }
 
+  // Check if user can access the current tab
+  const canAccessTab = (tab: string) => {
+    if (userRole === 'admin') return true;
+    // User biasa hanya bisa akses dashboard, sales, dan products
+    return ['dashboard', 'sales', 'products'].includes(tab);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-blue-600 text-white shadow-md">
         <div className="container mx-auto px-4 py-4">
-          <h1 className="text-2xl">Taking Order System</h1>
-          <p className="text-blue-100">Sistem Pencatatan Penjualan Salesman</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl">Taking Order System</h1>
+              <p className="text-blue-100 text-sm">Sistem Pencatatan Penjualan Salesman</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-sm">{user.user_metadata?.name || user.email}</p>
+                <p className="text-xs text-blue-100">
+                  {userRole === 'admin' ? 'Administrator' : 'User'}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
       {/* Navigation Tabs */}
       <div className="bg-white border-b shadow-sm sticky top-0 z-10">
         <div className="container mx-auto px-4">
-          <div className="flex gap-1">
+          <div className="flex gap-1 overflow-x-auto">
             <button
-              onClick={() => setActiveTab('entry')}
-              className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-colors ${
-                activeTab === 'entry'
+              onClick={() => setActiveTab('dashboard')}
+              className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === 'dashboard'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <LayoutDashboard className="w-5 h-5" />
+              Dashboard
+            </button>
+            <button
+              onClick={() => setActiveTab('sales')}
+              className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === 'sales'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
               <ShoppingCart className="w-5 h-5" />
-              Entry Penjualan
+              Penjualan
             </button>
             <button
               onClick={() => setActiveTab('products')}
-              className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-colors ${
+              className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === 'products'
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
@@ -425,31 +445,35 @@ useEffect(() => {
               <Package className="w-5 h-5" />
               Daftar Barang
             </button>
-            <button
-              onClick={() => setActiveTab('history')}
-              className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-colors ${
-                activeTab === 'history'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <History className="w-5 h-5" />
-              Riwayat Penjualan
-            </button>
-            <button
-              onClick={() => setActiveTab('salesmen')}
-              className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-colors ${
-                activeTab === 'salesmen'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <Users className="w-5 h-5" />
-              Daftar Salesman
-            </button>
+            {userRole === 'admin' && (
+              <>
+                <button
+                  onClick={() => setActiveTab('salesmen')}
+                  className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-colors whitespace-nowrap ${
+                    activeTab === 'salesmen'
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <Users className="w-5 h-5" />
+                  Daftar Salesman
+                </button>
+                <button
+                  onClick={() => setActiveTab('users')}
+                  className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-colors whitespace-nowrap ${
+                    activeTab === 'users'
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <Shield className="w-5 h-5" />
+                  Manajemen User
+                </button>
+              </>
+            )}
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 px-6 py-4 border-b-2 transition-colors text-red-600 hover:text-red-700"
+              className="flex items-center gap-2 px-6 py-4 border-b-2 transition-colors text-red-600 hover:text-red-700 whitespace-nowrap ml-auto"
             >
               <LogOut className="w-5 h-5" />
               Logout
@@ -460,19 +484,41 @@ useEffect(() => {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
-        {activeTab === 'entry' && (
-          <SalesEntry products={products} salesmen={salesmen} onSaleSubmit={handleSaleSubmit} />
+        {activeTab === 'dashboard' && (
+          <Dashboard sales={sales} products={products} salesmen={salesmen} />
+        )}
+        {activeTab === 'sales' && (
+          <SalesHistory 
+            sales={sales} 
+            salesmen={salesmen}
+            onAddSale={() => setShowSalesModal(true)}
+          />
         )}
         {activeTab === 'products' && (
           <ProductList products={products} />
         )}
-        {activeTab === 'history' && (
-          <SalesHistory sales={sales} salesmen={salesmen} />
+        {activeTab === 'salesmen' && userRole === 'admin' && (
+          <SalesmanList 
+            salesmen={salesmen} 
+            onAdd={handleAddSalesman} 
+            onUpdate={handleUpdateSalesman} 
+            onDelete={handleDeleteSalesman} 
+          />
         )}
-        {activeTab === 'salesmen' && (
-          <SalesmanList salesmen={salesmen} onAdd={handleAddSalesman} onUpdate={handleUpdateSalesman} onDelete={handleDeleteSalesman} />
+        {activeTab === 'users' && userRole === 'admin' && (
+          <ManageUsers onUserUpdated={loadData} />
         )}
       </main>
+
+      {/* Sales Entry Modal */}
+      {showSalesModal && (
+        <SalesEntryModal
+          products={products}
+          salesmen={salesmen}
+          onSaleSubmit={handleSaleSubmit}
+          onClose={() => setShowSalesModal(false)}
+        />
+      )}
     </div>
   );
 }

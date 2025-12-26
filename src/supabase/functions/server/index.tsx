@@ -271,4 +271,133 @@ app.delete("/make-server-a0489752/salesmen/:id", async (c) => {
   }
 });
 
+// ============ USER MANAGEMENT ENDPOINTS ============
+
+// Get all users
+app.get("/make-server-a0489752/users", async (c) => {
+  try {
+    const users = await kv.get("users");
+    return c.json({ users: users || [] });
+  } catch (error) {
+    console.log(`Error fetching users: ${error}`);
+    return c.json({ error: "Failed to fetch users", details: String(error) }, 500);
+  }
+});
+
+// Add a user
+app.post("/make-server-a0489752/users", async (c) => {
+  try {
+    const { email, password, name, role } = await c.req.json();
+
+    if (!email || !password || !name || !role) {
+      return c.json({ error: "All fields are required" }, 400);
+    }
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
+
+    // Create user in Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      user_metadata: { name, role },
+      email_confirm: true
+    });
+
+    if (authError) {
+      console.log(`User creation error: ${authError.message}`);
+      return c.json({ error: authError.message }, 400);
+    }
+
+    // Store user info in KV
+    let users = await kv.get("users");
+    if (!users || !Array.isArray(users)) {
+      users = [];
+    }
+
+    const newUser = {
+      id: authData.user.id,
+      email,
+      name,
+      role,
+      created_at: new Date().toISOString()
+    };
+
+    users.push(newUser);
+    await kv.set("users", users);
+
+    return c.json({ message: "User created successfully", user: newUser });
+  } catch (error) {
+    console.log(`Error creating user: ${error}`);
+    return c.json({ error: "Failed to create user", details: String(error) }, 500);
+  }
+});
+
+// Update a user
+app.put("/make-server-a0489752/users/:id", async (c) => {
+  try {
+    const userId = c.req.param("id");
+    const { name, role } = await c.req.json();
+
+    let users = await kv.get("users");
+    if (!users || !Array.isArray(users)) {
+      return c.json({ error: "Users not found" }, 404);
+    }
+
+    const updatedUsers = users.map((u: any) => {
+      if (u.id === userId) {
+        return { ...u, name, role };
+      }
+      return u;
+    });
+
+    await kv.set("users", updatedUsers);
+
+    // Update Supabase user metadata
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
+
+    await supabase.auth.admin.updateUserById(userId, {
+      user_metadata: { name, role }
+    });
+
+    return c.json({ message: "User updated successfully" });
+  } catch (error) {
+    console.log(`Error updating user: ${error}`);
+    return c.json({ error: "Failed to update user", details: String(error) }, 500);
+  }
+});
+
+// Delete a user
+app.delete("/make-server-a0489752/users/:id", async (c) => {
+  try {
+    const userId = c.req.param("id");
+
+    let users = await kv.get("users");
+    if (!users || !Array.isArray(users)) {
+      return c.json({ error: "Users not found" }, 404);
+    }
+
+    const updatedUsers = users.filter((u: any) => u.id !== userId);
+    await kv.set("users", updatedUsers);
+
+    // Delete from Supabase Auth
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
+
+    await supabase.auth.admin.deleteUser(userId);
+
+    return c.json({ message: "User deleted successfully" });
+  } catch (error) {
+    console.log(`Error deleting user: ${error}`);
+    return c.json({ error: "Failed to delete user", details: String(error) }, 500);
+  }
+});
+
 Deno.serve(app.fetch);

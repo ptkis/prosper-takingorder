@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Sale } from '../App';
-import { ChevronDown, ChevronUp, Calendar, User, DollarSign, Filter } from 'lucide-react';
+import { ChevronDown, ChevronUp, Calendar, User, DollarSign, Plus } from 'lucide-react';
 
 interface SalesHistoryProps {
   sales: Sale[];
   salesmen: Array<{ id: string; name: string }>;
+  onAddSale: () => void;
 }
 
-export function SalesHistory({ sales, salesmen }: SalesHistoryProps) {
+export function SalesHistory({ sales, salesmen, onAddSale }: SalesHistoryProps) {
   const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -69,6 +70,18 @@ export function SalesHistory({ sales, salesmen }: SalesHistoryProps) {
 
   return (
     <div className="max-w-6xl mx-auto">
+      {/* Header with Add Button */}
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl">Data Penjualan</h2>
+        <button
+          onClick={onAddSale}
+          className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+        >
+          <Plus className="w-5 h-5" />
+          Tambah Penjualan
+        </button>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-lg shadow-md p-6">
@@ -104,7 +117,7 @@ export function SalesHistory({ sales, salesmen }: SalesHistoryProps) {
 
       {/* Sales List */}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl mb-6">Riwayat Penjualan</h2>
+        <h3 className="text-lg mb-6">Riwayat Transaksi</h3>
 
         {/* Filters */}
         <div className="grid md:grid-cols-3 gap-4 mb-6">
@@ -158,20 +171,20 @@ export function SalesHistory({ sales, salesmen }: SalesHistoryProps) {
                   <div className="flex items-center justify-between">
                     <div className="flex-1 grid md:grid-cols-4 gap-4">
                       <div>
-                        <p className="text-gray-600">Tanggal</p>
-                        <p>{formatDate(sale.date)}</p>
+                        <p className="text-gray-600 text-sm">Tanggal</p>
+                        <p className="text-sm">{formatDate(sale.date)}</p>
                       </div>
                       <div>
-                        <p className="text-gray-600">Salesman</p>
-                        <p>{sale.salesmanName}</p>
+                        <p className="text-gray-600 text-sm">Salesman</p>
+                        <p className="text-sm">{sale.salesmanName}</p>
                       </div>
                       <div>
-                        <p className="text-gray-600">Customer</p>
-                        <p>{sale.customerName}</p>
+                        <p className="text-gray-600 text-sm">Customer</p>
+                        <p className="text-sm">{sale.customerName}</p>
                       </div>
                       <div>
-                        <p className="text-gray-600">Total</p>
-                        <p className="text-green-600">
+                        <p className="text-gray-600 text-sm">Total</p>
+                        <p className="text-green-600 text-sm">
                           Rp {sale.totalAmount.toLocaleString('id-ID')}
                         </p>
                       </div>
@@ -188,29 +201,32 @@ export function SalesHistory({ sales, salesmen }: SalesHistoryProps) {
 
                 {expandedSaleId === sale.id && (
                   <div className="p-4 border-t">
-                    <h4 className="mb-3">Detail Item:</h4>
+                    <h4 className="mb-3 text-sm font-semibold">Detail Item:</h4>
                     <div className="overflow-x-auto">
                       <table className="w-full">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-3 py-2 text-left">Kode</th>
-                            <th className="px-3 py-2 text-left">Nama Produk</th>
-                            <th className="px-3 py-2 text-right">Harga</th>
-                            <th className="px-3 py-2 text-right">Jumlah</th>
-                            <th className="px-3 py-2 text-right">Total</th>
+                        <thead>
+                          <tr className="border-b-2 border-gray-200">
+                            <th className="px-3 py-2 text-left text-sm font-semibold text-gray-700">KODE</th>
+                            <th className="px-3 py-2 text-left text-sm font-semibold text-gray-700">PRODUK</th>
+                            <th className="px-3 py-2 text-right text-sm font-semibold text-gray-700">HARGA</th>
+                            <th className="px-3 py-2 text-right text-sm font-semibold text-gray-700">JUMLAH</th>
+                            <th className="px-3 py-2 text-right text-sm font-semibold text-gray-700">TOTAL</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y">
+                        <tbody>
                           {sale.items.map((item, index) => (
-                            <tr key={index}>
-                              <td className="px-3 py-2">{item.productCode}</td>
-                              <td className="px-3 py-2">{item.productName}</td>
-                              <td className="px-3 py-2 text-right">
-                                Rp {item.price.toLocaleString('id-ID')}
+                            <tr 
+                              key={index}
+                              className={index % 2 === 0 ? 'bg-green-50' : 'bg-white'}
+                            >
+                              <td className="px-3 py-2 text-sm text-gray-900">{item.productCode}</td>
+                              <td className="px-3 py-2 text-sm text-gray-900">{item.productName}</td>
+                              <td className="px-3 py-2 text-sm text-right text-gray-700">
+                                {item.price.toLocaleString('id-ID')}
                               </td>
-                              <td className="px-3 py-2 text-right">{item.quantity}</td>
-                              <td className="px-3 py-2 text-right">
-                                Rp {item.total.toLocaleString('id-ID')}
+                              <td className="px-3 py-2 text-sm text-right text-gray-700">{item.quantity}</td>
+                              <td className="px-3 py-2 text-sm text-right text-gray-900">
+                                {item.total.toLocaleString('id-ID')}
                               </td>
                             </tr>
                           ))}

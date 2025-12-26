@@ -123,37 +123,42 @@ export function SalesmanList({ salesmen, onAdd, onUpdate, onDelete }: SalesmanLi
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left">Kode</th>
-                <th className="px-4 py-3 text-left">Nama</th>
-                <th className="px-4 py-3 text-left">No. Telepon</th>
-                <th className="px-4 py-3 text-left">Area</th>
-                <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3 text-center">Aksi</th>
+            <thead>
+              <tr className="border-b-2 border-gray-200">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">NO</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">KODE</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">NAMA</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">TELEPON</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">AREA</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">STATUS</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">AKSI</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody>
               {filteredSalesmen.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                     {searchTerm ? 'Tidak ada hasil pencarian' : 'Belum ada data salesman'}
                   </td>
                 </tr>
               ) : (
-                filteredSalesmen.map(salesman => (
-                  <tr key={salesman.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">{salesman.code}</td>
-                    <td className="px-4 py-3">{salesman.name}</td>
-                    <td className="px-4 py-3">{salesman.phone}</td>
-                    <td className="px-4 py-3">{salesman.area}</td>
+                filteredSalesmen.map((salesman, index) => (
+                  <tr 
+                    key={salesman.id}
+                    className={index % 2 === 0 ? 'bg-blue-50' : 'bg-white'}
+                  >
+                    <td className="px-4 py-3 text-sm text-gray-700">{index + 1}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{salesman.code}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{salesman.name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{salesman.phone}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{salesman.area}</td>
                     <td className="px-4 py-3 text-center">
                       {salesman.status === 'active' ? (
-                        <span className="inline-flex px-3 py-1 bg-green-100 text-green-800 rounded-full">
+                        <span className="inline-flex px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
                           Aktif
                         </span>
                       ) : (
-                        <span className="inline-flex px-3 py-1 bg-gray-100 text-gray-800 rounded-full">
+                        <span className="inline-flex px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm">
                           Nonaktif
                         </span>
                       )}
@@ -182,7 +187,7 @@ export function SalesmanList({ salesmen, onAdd, onUpdate, onDelete }: SalesmanLi
         </div>
 
         <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <p className="text-gray-700">
+          <p className="text-gray-700 text-sm">
             Total Salesman: <strong>{salesmen.length}</strong> | 
             Aktif: <strong>{salesmen.filter(s => s.status === 'active').length}</strong> | 
             Nonaktif: <strong>{salesmen.filter(s => s.status === 'inactive').length}</strong>
