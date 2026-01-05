@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Users, Plus, Edit2, Trash2, X, Save, Loader2, Shield, User } from 'lucide-react';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
-
-const API_URL = `https://${projectId}.supabase.co/functions/v1/make-server-a0489752`;
+import { API_URL } from '../utils/api';
 
 export interface AppUser {
   id: string;
@@ -14,9 +12,10 @@ export interface AppUser {
 
 interface ManageUsersProps {
   onUserUpdated?: () => void;
+  authToken: string | null;
 }
 
-export function ManageUsers({ onUserUpdated }: ManageUsersProps) {
+export function ManageUsers({ onUserUpdated, authToken }: ManageUsersProps) {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -32,14 +31,15 @@ export function ManageUsers({ onUserUpdated }: ManageUsersProps) {
 
   useEffect(() => {
     loadUsers();
-  }, []);
+  }, [authToken]);
 
   const loadUsers = async () => {
+    if (!authToken) return;
     try {
       setLoading(true);
       const response = await fetch(`${API_URL}/users`, {
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
 
@@ -57,7 +57,7 @@ export function ManageUsers({ onUserUpdated }: ManageUsersProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.email || !formData.name || (!editingId && !formData.password)) {
+    if (!authToken || !formData.email || !formData.name || (!editingId && !formData.password)) {
       alert('Semua field harus diisi');
       return;
     }
@@ -70,7 +70,7 @@ export function ManageUsers({ onUserUpdated }: ManageUsersProps) {
         const response = await fetch(`${API_URL}/users/${editingId}`, {
           method: 'PUT',
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
+            'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
@@ -91,7 +91,7 @@ export function ManageUsers({ onUserUpdated }: ManageUsersProps) {
         const response = await fetch(`${API_URL}/users`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
+            'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(formData)
@@ -129,6 +129,7 @@ export function ManageUsers({ onUserUpdated }: ManageUsersProps) {
   };
 
   const handleDelete = async (id: string) => {
+    if (!authToken) return;
     if (!confirm('Apakah Anda yakin ingin menghapus user ini?')) {
       return;
     }
@@ -137,7 +138,7 @@ export function ManageUsers({ onUserUpdated }: ManageUsersProps) {
       const response = await fetch(`${API_URL}/users/${id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
 

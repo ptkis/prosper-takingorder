@@ -12,7 +12,7 @@ import { AddProductModal } from './components/AddProductModal';
 import type { Salesman } from './components/SalesmanList';
 import type { Location } from './components/AddProductModal';
 import { LayoutDashboard, Package, ShoppingCart, Loader2, LogOut, Users, Shield, MapPin, UserCircle } from 'lucide-react';
-import { supabase, API_URL, publicAnonKey } from './utils/supabase/client';
+import { API_URL } from './utils/api';
 
 export interface Product {
   id: string;
@@ -55,7 +55,7 @@ const initialProducts: Product[] = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'sales' | 'products' | 'salesmen' | 'users' | 'locations' | 'profile' | 'addProduct'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'sales' | 'products' | 'salesmen' | 'users' | 'locations' | 'profile'>('dashboard');
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [sales, setSales] = useState<Sale[]>([]);
   const [salesmen, setSalesmen] = useState<Salesman[]>([]);
@@ -64,60 +64,78 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<'admin' | 'user'>('user');
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem('orderapp_token'));
   const [showSalesModal, setShowSalesModal] = useState(false);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
 
-  // Check for existing session
-  useEffect(() => {
-    checkSession();
-  }, []);
-
-  // Initialize and load data
-  useEffect(() => {
-    if (user) {
-      loadData();
-    }
-  }, [user]);
-
-  const checkSession = async () => {
+  const refreshMe = async (): Promise<boolean> => {
+    if (!authToken) return false;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setUser(session.user);
-        setAccessToken(session.access_token);
-        // Get user role from metadata
-        const role = session.user.user_metadata?.role || 'user';
-        setUserRole(role);
+      const res = await fetch(`${API_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data.user);
+        setUserRole(data.user.role || 'user');
+        return true;
       }
+      localStorage.removeItem('orderapp_token');
+      setAuthToken(null);
+      setUser(null);
+      setUserRole('user');
+      return false;
     } catch (error) {
       console.error('Error checking session:', error);
-    } finally {
-      setLoading(false);
+      return false;
     }
   };
 
+  // Check for existing session
+  useEffect(() => {
+    const loadSession = async () => {
+      if (!authToken) {
+        setLoading(false);
+        return;
+      }
+      try {
+        await refreshMe();
+      } catch (error) {
+        console.error('Error checking session:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadSession();
+  }, [authToken]);
+
+  // Initialize and load data
+  useEffect(() => {
+    if (user && authToken) {
+      loadData();
+    }
+  }, [user, authToken]);
+
   const handleLogin = async (email: string, password: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
       });
 
-      if (error) {
-        alert(error.message);
+      const data = await response.json();
+      if (!response.ok) {
+        alert(data.error || 'Gagal login');
         return false;
       }
 
-      if (data.session) {
-        setUser(data.user);
-        setAccessToken(data.session.access_token);
-        const role = data.user.user_metadata?.role || 'user';
-        setUserRole(role);
-        return true;
-      }
-
-      return false;
+      setUser(data.user);
+      setUserRole(data.user.role || 'user');
+      setAuthToken(data.token);
+      localStorage.setItem('orderapp_token', data.token);
+      return true;
     } catch (error) {
       console.error('Login error:', error);
       alert('Gagal login. Silakan coba lagi.');
@@ -127,10 +145,9 @@ export default function App() {
 
   const handleSignup = async (email: string, password: string, name: string): Promise<boolean> => {
     try {
-      const response = await fetch(`${API_URL}/signup`, {
+      const response = await fetch(`${API_URL}/auth/signup`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ email, password, name })
@@ -143,7 +160,11 @@ export default function App() {
         return false;
       }
 
-      alert('Akun berhasil dibuat! Silakan login.');
+      setUser(data.user);
+      setUserRole(data.user.role || 'user');
+      setAuthToken(data.token);
+      localStorage.setItem('orderapp_token', data.token);
+      alert('Akun berhasil dibuat!');
       return true;
     } catch (error) {
       console.error('Signup error:', error);
@@ -153,20 +174,28 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    if (authToken) {
+      try {
+        await fetch(`${API_URL}/auth/logout`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${authToken}` }
+        });
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    }
+    localStorage.removeItem('orderapp_token');
     setUser(null);
-    setAccessToken(null);
+    setAuthToken(null);
     setUserRole('user');
     setProducts(initialProducts);
     setSales([]);
   };
 
-  // Show login screen if not authenticated
-  if (!user) {
-    return <Login onLogin={handleLogin} onSignup={handleSignup} />;
-  }
-
   const loadData = async () => {
+    if (!authToken) {
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -175,7 +204,7 @@ export default function App() {
       await fetch(`${API_URL}/init-products`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
         }
       });
@@ -183,7 +212,7 @@ export default function App() {
       // Load products
       const productsRes = await fetch(`${API_URL}/products`, {
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
       
@@ -192,12 +221,21 @@ export default function App() {
       }
       
       const productsData = await productsRes.json();
-      setProducts(productsData.products || initialProducts);
+      const normalizedProducts = (productsData.products || initialProducts).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        price: Number(p.price) || 0,
+        stock: Number(p.stock) || 0,
+        unit: p.unit || 'pcs',
+        locationId: p.locationId ?? p.location_id ?? undefined
+      }));
+      setProducts(normalizedProducts);
 
       // Load sales
       const salesRes = await fetch(`${API_URL}/sales`, {
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
       
@@ -206,19 +244,39 @@ export default function App() {
       }
       
       const salesData = await salesRes.json();
-      setSales(salesData.sales || []);
+      const normalizedSales = (salesData.sales || []).map((s: any) => ({
+        id: s.id,
+        salesmanName: s.salesmanName ?? s.salesman_name ?? '',
+        salesmanId: s.salesmanId ?? s.salesman_id ?? '',
+        customerName: s.customerName ?? s.customer_name ?? '',
+        date: s.date,
+        totalAmount: Number(s.totalAmount ?? s.total_amount ?? 0),
+        items: (s.items || []).map((i: any) => ({
+          productId: i.productId ?? i.product_id ?? '',
+          productName: i.productName ?? i.product_name ?? '',
+          productCode: i.productCode ?? i.product_code ?? '',
+          quantity: Number(i.quantity) || 0,
+          price: Number(i.price) || 0,
+          total: Number(i.total) || Number(i.price || 0) * Number(i.quantity || 0)
+        }))
+      }));
+      setSales(normalizedSales);
 
       // Load salesmen (optional - don't fail if it doesn't exist yet)
       try {
         const salesmenRes = await fetch(`${API_URL}/salesmen`, {
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`
+            'Authorization': `Bearer ${authToken}`
           }
         });
         
         if (salesmenRes.ok) {
           const salesmenData = await salesmenRes.json();
-          setSalesmen(salesmenData.salesmen || []);
+          const normalizedSalesmen = (salesmenData.salesmen || []).map((s: any) => ({
+            ...s,
+            status: s.status || 'active'
+          }));
+          setSalesmen(normalizedSalesmen);
         } else {
           console.log('Salesmen endpoint not available yet');
           setSalesmen([]);
@@ -232,7 +290,7 @@ export default function App() {
       try {
         const locationsRes = await fetch(`${API_URL}/locations`, {
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`
+            'Authorization': `Bearer ${authToken}`
           }
         });
         
@@ -257,11 +315,12 @@ export default function App() {
   };
 
   const handleSaleSubmit = async (sale: Sale) => {
+    if (!authToken) return false;
     try {
       const response = await fetch(`${API_URL}/sales`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(sale)
@@ -285,6 +344,7 @@ export default function App() {
 
   // Salesman CRUD handlers
   const handleAddSalesman = async (salesman: Omit<Salesman, 'id'>): Promise<boolean> => {
+    if (!authToken) return false;
     try {
       const newSalesman = {
         id: Date.now().toString(),
@@ -294,7 +354,7 @@ export default function App() {
       const response = await fetch(`${API_URL}/salesmen`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(newSalesman)
@@ -318,11 +378,12 @@ export default function App() {
   };
 
   const handleUpdateSalesman = async (id: string, salesman: Omit<Salesman, 'id'>): Promise<boolean> => {
+    if (!authToken) return false;
     try {
       const response = await fetch(`${API_URL}/salesmen/${id}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(salesman)
@@ -346,11 +407,12 @@ export default function App() {
   };
 
   const handleDeleteSalesman = async (id: string): Promise<boolean> => {
+    if (!authToken) return false;
     try {
       const response = await fetch(`${API_URL}/salesmen/${id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
 
@@ -370,9 +432,8 @@ export default function App() {
   };
 
   // Product CRUD handlers
-  const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
-  
   const handleAddProduct = async (productData: any): Promise<boolean> => {
+    if (!authToken) return false;
     try {
       const newProduct = {
         id: Date.now().toString(),
@@ -382,7 +443,7 @@ export default function App() {
       const response = await fetch(`${API_URL}/products`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(newProduct)
@@ -412,12 +473,13 @@ export default function App() {
 
   const handleUpdateProduct = async (productData: any): Promise<boolean> => {
     if (!editingProduct) return false;
+    if (!authToken) return false;
     
     try {
       const response = await fetch(`${API_URL}/products/${editingProduct.id}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(productData)
@@ -442,6 +504,7 @@ export default function App() {
   };
 
   const handleDeleteProduct = async (id: string) => {
+    if (!authToken) return;
     if (!confirm('Apakah Anda yakin ingin menghapus produk ini?')) {
       return;
     }
@@ -450,7 +513,7 @@ export default function App() {
       const response = await fetch(`${API_URL}/products/${id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
 
@@ -469,6 +532,7 @@ export default function App() {
 
   // Location CRUD handlers
   const handleAddLocation = async (location: Omit<Location, 'id'>): Promise<boolean> => {
+    if (!authToken) return false;
     try {
       const newLocation = {
         id: Date.now().toString(),
@@ -478,7 +542,7 @@ export default function App() {
       const response = await fetch(`${API_URL}/locations`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(newLocation)
@@ -502,11 +566,12 @@ export default function App() {
   };
 
   const handleUpdateLocation = async (id: string, location: Omit<Location, 'id'>): Promise<boolean> => {
+    if (!authToken) return false;
     try {
       const response = await fetch(`${API_URL}/locations/${id}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(location)
@@ -530,11 +595,12 @@ export default function App() {
   };
 
   const handleDeleteLocation = async (id: string): Promise<boolean> => {
+    if (!authToken) return false;
     try {
       const response = await fetch(`${API_URL}/locations/${id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
 
@@ -552,6 +618,11 @@ export default function App() {
       return false;
     }
   };
+
+  // Show login screen if not authenticated
+  if (!user) {
+    return <Login onLogin={handleLogin} onSignup={handleSignup} />;
+  }
 
   if (loading) {
     return (
@@ -586,7 +657,7 @@ export default function App() {
   const canAccessTab = (tab: string) => {
     if (userRole === 'admin') return true;
     // User biasa hanya bisa akses dashboard, sales, dan products
-    return ['dashboard', 'sales', 'products'].includes(tab);
+    return ['dashboard', 'sales', 'products', 'profile'].includes(tab);
   };
 
   return (
@@ -601,7 +672,7 @@ export default function App() {
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right">
-                <p className="text-sm">{user.user_metadata?.name || user.email}</p>
+                <p className="text-sm">{user.name || user.email}</p>
                 <p className="text-xs text-blue-100">
                   {userRole === 'admin' ? 'Administrator' : 'User'}
                 </p>
@@ -683,30 +754,19 @@ export default function App() {
                   <MapPin className="w-5 h-5" />
                   Manajemen Lokasi
                 </button>
-                <button
-                  onClick={() => setActiveTab('profile')}
-                  className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-colors whitespace-nowrap ${
-                    activeTab === 'profile'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <UserCircle className="w-5 h-5" />
-                  Profil Pengguna
-                </button>
-                <button
-                  onClick={() => setActiveTab('addProduct')}
-                  className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-colors whitespace-nowrap ${
-                    activeTab === 'addProduct'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Package className="w-5 h-5" />
-                  Tambah Barang
-                </button>
               </>
             )}
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === 'profile'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <UserCircle className="w-5 h-5" />
+              Profil Pengguna
+            </button>
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 px-6 py-4 border-b-2 transition-colors text-red-600 hover:text-red-700 whitespace-nowrap ml-auto"
@@ -748,19 +808,18 @@ export default function App() {
           />
         )}
         {activeTab === 'users' && userRole === 'admin' && (
-          <ManageUsers onUserUpdated={loadData} />
+          <ManageUsers onUserUpdated={loadData} authToken={authToken} />
         )}
         {activeTab === 'locations' && userRole === 'admin' && (
-          <LocationManagement onLocationUpdated={loadData} />
+          <LocationManagement 
+            locations={locations}
+            onAdd={handleAddLocation}
+            onUpdate={handleUpdateLocation}
+            onDelete={handleDeleteLocation}
+          />
         )}
         {activeTab === 'profile' && (
-          <UserProfile user={user} />
-        )}
-        {activeTab === 'addProduct' && (
-          <AddProductModal
-            onProductAdded={loadData}
-            onClose={() => setActiveTab('products')}
-          />
+          <UserProfile user={user} userRole={userRole} authToken={authToken} onUpdate={refreshMe} />
         )}
       </main>
 
@@ -777,7 +836,9 @@ export default function App() {
       {/* Add Product Modal */}
       {showAddProductModal && (
         <AddProductModal
-          onProductAdded={loadData}
+          onSubmit={editingProduct ? handleUpdateProduct : handleAddProduct}
+          editProduct={editingProduct}
+          locations={locations}
           onClose={() => setShowAddProductModal(false)}
         />
       )}

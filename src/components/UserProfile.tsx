@@ -1,26 +1,34 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { User, Mail, Shield, Calendar, Save, Loader2 } from 'lucide-react';
-import { supabase } from '../utils/supabase/client';
+import { API_URL } from '../utils/api';
 
 interface UserProfileProps {
   user: any;
   userRole: 'admin' | 'user';
-  onUpdate?: () => void;
+  authToken: string | null;
+  onUpdate?: () => void | Promise<void>;
 }
 
-export function UserProfile({ user, userRole, onUpdate }: UserProfileProps) {
+export function UserProfile({ user, userRole, authToken, onUpdate }: UserProfileProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    name: user.user_metadata?.name || '',
-    currentPassword: '',
+    name: user.name || '',
     newPassword: '',
     confirmPassword: ''
   });
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    setFormData((prev) => ({ ...prev, name: user.name || '' }));
+  }, [user?.name]);
+
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!authToken) {
+      alert('Anda belum login');
+      return;
+    }
     if (!formData.name.trim()) {
       alert('Nama tidak boleh kosong');
       return;
@@ -29,19 +37,24 @@ export function UserProfile({ user, userRole, onUpdate }: UserProfileProps) {
     setSaving(true);
 
     try {
-      // Update user metadata
-      const { error } = await supabase.auth.updateUser({
-        data: { name: formData.name }
+      const response = await fetch(`${API_URL}/users/${user.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: formData.name })
       });
 
-      if (error) {
-        alert(error.message);
+      const data = await response.json();
+      if (!response.ok) {
+        alert(data.error || 'Gagal mengupdate profil');
         return;
       }
 
       alert('Profil berhasil diupdate');
       setIsEditing(false);
-      if (onUpdate) onUpdate();
+      if (onUpdate) await onUpdate();
     } catch (error) {
       console.error('Error updating profile:', error);
       alert('Gagal mengupdate profil');
@@ -53,6 +66,10 @@ export function UserProfile({ user, userRole, onUpdate }: UserProfileProps) {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!authToken) {
+      alert('Anda belum login');
+      return;
+    }
     if (!formData.newPassword || !formData.confirmPassword) {
       alert('Password baru harus diisi');
       return;
@@ -71,22 +88,27 @@ export function UserProfile({ user, userRole, onUpdate }: UserProfileProps) {
     setSaving(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: formData.newPassword
+      const response = await fetch(`${API_URL}/users/${user.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ password: formData.newPassword })
       });
-
-      if (error) {
-        alert(error.message);
+      const data = await response.json();
+      if (!response.ok) {
+        alert(data.error || 'Gagal mengubah password');
         return;
       }
 
       alert('Password berhasil diubah');
       setFormData({
         ...formData,
-        currentPassword: '',
         newPassword: '',
         confirmPassword: ''
       });
+      if (onUpdate) await onUpdate();
     } catch (error) {
       console.error('Error changing password:', error);
       alert('Gagal mengubah password');
@@ -96,6 +118,7 @@ export function UserProfile({ user, userRole, onUpdate }: UserProfileProps) {
   };
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('id-ID', {
       day: '2-digit',
       month: 'long',
@@ -135,7 +158,7 @@ export function UserProfile({ user, userRole, onUpdate }: UserProfileProps) {
                     disabled={saving}
                   />
                 ) : (
-                  <p className="text-gray-900">{user.user_metadata?.name || '-'}</p>
+                  <p className="text-gray-900">{user.name || '-'}</p>
                 )}
               </div>
             </div>
@@ -174,7 +197,7 @@ export function UserProfile({ user, userRole, onUpdate }: UserProfileProps) {
                   <button
                     onClick={() => {
                       setIsEditing(false);
-                      setFormData({ ...formData, name: user.user_metadata?.name || '' });
+                      setFormData({ ...formData, name: user.name || '' });
                     }}
                     className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                     disabled={saving}
