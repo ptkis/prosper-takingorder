@@ -12,9 +12,16 @@ import { UserProfile } from './components/UserProfile';
 import { AddProductModal } from './components/AddProductModal';
 import type { Salesman } from './components/SalesmanList';
 import type { Location } from './components/AddProductModal';
-import { LayoutDashboard, Package, ShoppingCart, Loader2, LogOut, Users, Shield, MapPin, UserCircle, Building2, Menu } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Loader2, LogOut, Users, Shield, MapPin, UserCircle, Building2, Menu, ChevronDown } from 'lucide-react';
 import { API_URL } from './utils/api';
 import { useIsMobile } from './components/ui/use-mobile';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './components/ui/dropdown-menu';
 
 export interface Product {
   id: string;
@@ -990,10 +997,38 @@ export default function App() {
                 <p className="text-xs text-gray-500">Sistem Pencatatan Penjualan Salesman</p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-900">{user.name || user.email}</p>
-              <p className="text-xs text-gray-500">{userRole === 'admin' ? 'Administrator' : 'User'}</p>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-gray-100 transition-colors"
+                  aria-label="User menu"
+                  type="button"
+                >
+                  <div className="text-right">
+                    <p className="text-sm text-gray-900">{user.name || user.email}</p>
+                    <p className="text-xs text-gray-500">{userRole === 'admin' ? 'Administrator' : 'User'}</p>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[10rem]">
+                <DropdownMenuItem onSelect={() => goToTab('profile')}>
+                  <UserCircle className="w-4 h-4" />
+                  Profil
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() => {
+                    handleLogout();
+                    closeMobileSidebar();
+                  }}
+                >
+                  <LogOut className="w-4 h-4" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
