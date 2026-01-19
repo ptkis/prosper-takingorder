@@ -40,7 +40,7 @@
             "express": "^5.2.1",
             "hono": "*",
             "input-otp": "^1.4.2",
-            "lucide-react": "^0.487.0",
+            "lucide-react": "^0.562.0",
             "next-themes": "^0.4.6",
             "pg": "^8.16.3",
             "react": "^18.3.1",
